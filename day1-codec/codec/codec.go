@@ -10,9 +10,14 @@ type Header struct {
 
 // 定义编码的接口
 type Codec interface {
+	// 接口必须实现Close() 函数
 	io.Closer
+	// 读出 Header
 	ReadHeader(*Header) error
+	// 读出 body
 	ReadBody(interface{}) error
+
+	// 写入 header和 body
 	Write(*Header, interface{}) error
 }
 
