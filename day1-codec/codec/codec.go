@@ -2,13 +2,16 @@ package codec
 
 import "io"
 
+/// 定义请求头
+
 type Header struct {
-	SeviceMethod string
-	Seq          uint64
-	Error        string
+	SeviceMethod string // 方法 User.SayHello 这种
+	Seq          uint64 //请求的序列号，为了区分不同请求的
+	Error        string // 错误信息
 }
 
 // 定义编码的接口
+
 type Codec interface {
 	// 接口必须实现Close() 函数
 	io.Closer
@@ -38,3 +41,6 @@ func init() {
 	NewCodecFuncMap = make(map[Type]NewCodecFunc)
 	NewCodecFuncMap[GobType] = NewGobCodec
 }
+
+/// 编码 header + body
+/// header (method, seq, error)
