@@ -24,6 +24,7 @@ func main() {
 	log.SetFlags(0)
 	addr := make(chan string)
 	go startServer(addr)
+	// 建立client, 已经向服务端发送 option
 	client, _ := cwrpc.Dial("tcp", <-addr)
 	defer func() { _ = client.Close() }()
 
@@ -36,6 +37,7 @@ func main() {
 			defer wg.Done()
 			args := fmt.Sprintf("geerpc req %d", i)
 			var reply string
+
 			if err := client.Call("Foo.Sum", args, &reply); err != nil {
 				log.Fatal("call Foo.Sum error:", err)
 			}
