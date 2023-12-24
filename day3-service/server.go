@@ -69,6 +69,10 @@ func (server *Server) serveCodec(cc codec.Codec) {
 	sending := new(sync.Mutex) // make sure to send a complete response
 	wg := new(sync.WaitGroup)  // wait until all request are handled
 	for {
+		// 解析 cc, 构建 req {
+		//	header(err), argv, reply, mthodType, service
+		//
+		//}
 		req, err := server.readRequest(cc)
 		if err != nil {
 			if req == nil {
@@ -104,44 +108,58 @@ func (server *Server) readRequestHeader(cc codec.Codec) (*codec.Header, error) {
 	return &h, nil
 }
 
+// 服务端找到对应的service
 func (server *Server) findService(serviceMethod string) (svc *service, mtype *methodType, err error) {
+	//  判定格式是 A.B的格式
 	dot := strings.LastIndex(serviceMethod, ".")
 	if dot < 0 {
 		err = errors.New("rpc server: service/method request ill-formed: " + serviceMethod)
 		return
 	}
+	// 分割 name, method
 	serviceName, methodName := serviceMethod[:dot], serviceMethod[dot+1:]
+	// 通过名字获取对应的服务
 	svci, ok := server.serviceMap.Load(serviceName)
 	if !ok {
 		err = errors.New("rpc server: can't find service " + serviceName)
 		return
 	}
+	// 转换成 service 类型
 	svc = svci.(*service)
+	// 获取对应的methdo
 	mtype = svc.method[methodName]
 	if mtype == nil {
 		err = errors.New("rpc server: can't find method " + methodName)
 	}
+	// 将 service, methodType, error返回
 	return
 }
 
 func (server *Server) readRequest(cc codec.Codec) (*request, error) {
+	// 读取header信息  serviceMethod, seq, error
 	h, err := server.readRequestHeader(cc)
 	if err != nil {
 		return nil, err
 	}
+	//  构建请求
 	req := &request{h: h}
+
 	req.svc, req.mtype, err = server.findService(h.ServiceMethod)
 	if err != nil {
 		return req, err
 	}
+	// 根据 methodType类型, 创建 argv, replyv的实例
 	req.argv = req.mtype.newArgv()
 	req.replyv = req.mtype.newReplyv()
 
 	// make sure that argvi is a pointer, ReadBody need a pointer as parameter
+	// 转成 interface{} any类型
 	argvi := req.argv.Interface()
+	// 区分是否是指针类型
 	if req.argv.Type().Kind() != reflect.Ptr {
 		argvi = req.argv.Addr().Interface()
 	}
+	// 将client传过来的 body数据写到 argvi中, 其实相当于写到 argv中
 	if err = cc.ReadBody(argvi); err != nil {
 		log.Println("rpc server: read body err:", err)
 		return req, err
@@ -159,12 +177,14 @@ func (server *Server) sendResponse(cc codec.Codec, h *codec.Header, body interfa
 
 func (server *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
+	// service.call(method.type, argv, reply)
 	err := req.svc.call(req.mtype, req.argv, req.replyv)
 	if err != nil {
 		req.h.Error = err.Error()
 		server.sendResponse(cc, req.h, invalidRequest, sending)
 		return
 	}
+	// 将执行结果回传给client
 	server.sendResponse(cc, req.h, req.replyv.Interface(), sending)
 }
 
